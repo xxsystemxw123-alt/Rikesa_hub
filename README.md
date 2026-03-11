@@ -2,7 +2,7 @@
 local Players,UIS,RS,TS,SGui,WS,Repl=game:GetService("Players"),game:GetService("UserInputService"),game:GetService("RunService"),game:GetService("TweenService"),game:GetService("StarterGui"),game:GetService("Workspace"),game:GetService("ReplicatedStorage")local LP,Camera=Players.LocalPlayer,WS.CurrentCamera
 SGui:SetCore("SendNotification",{Title="RIKESA HUB",Text="[ RIKESA HUB ] Loaded!",Duration=4})
 -- [1] GLOBALS
-_G.selectedPart=nil;_G.selectedHighlight=nil;_G.floatSpeed=10;_G.flySpeed=1.5;_G.isFlying=false;_G.hiddenfling=false;_G.antiFling=false;_G.followCamera=false;_G.followDistance=15;_G.moveDirection=Vector3.new(0,0,0);_G.initialRotation=CFrame.new();_G.flingSpeed=10000;_G.multiSelect={};_G.selectRadius=50;_G.selectCircle=nil;_G.ringPartsEnabled=false;_G.tornadoConfig={radius=50,height=100,rotationSpeed=10,attractionStrength=1000,};_G.tornadoParts={};_G.godModeActive=false;_G.godModeConnection=nil;_G.fallDamageConnection=nil;_G.fallVelocityConnection=nil;_G.godModeTimer=nil;_G.originalWalkSpeed=16;_G.originalJumpPower=50;_G.flyBG=nil;_G.flyBV=nil;_G.flyConnection=nil;_G.autoAnimActive=false;_G.autoAnimTrack=nil;_G.antiFlingConnection=nil;_G.flingUI=nil;_G.flingActive=false;_G.flingConnection=nil;_G.flingNoclipConnection=nil;_G.flingPlayerNoclipParts={};_G.flingOtherNoclipParts={};_G.flingMasslessParts={};_G.collisionProtection=nil;_G.velocityMonitor=nil;_G.healthForceTimer=nil
+_G.selectedPart=nil;_G.selectedHighlight=nil;_G.floatSpeed=10;_G.flySpeed=1.5;_G.isFlying=false;_G.hiddenfling=false;_G.antiFling=false;_G.followCamera=false;_G.followDistance=15;_G.moveDirection=Vector3.new(0,0,0);_G.initialRotation=CFrame.new();_G.flingSpeed=10000;_G.multiSelect={};_G.selectRadius=50;_G.selectCircle=nil;_G.ringPartsEnabled=false;_G.tornadoConfig={radius=50,height=100,rotationSpeed=10,attractionStrength=1000,};_G.tornadoParts={};_G.godModeActive=false;_G.godModeConnection=nil;_G.fallDamageConnection=nil;_G.fallVelocityConnection=nil;_G.godModeTimer=nil;_G.originalWalkSpeed=16;_G.originalJumpPower=50;_G.flyBG=nil;_G.flyBV=nil;_G.flyConnection=nil;_G.autoAnimActive=false;_G.autoAnimTrack=nil;_G.antiFlingConnection=nil;_G.flingUI=nil;_G.flingActive=false;_G.flingConnection=nil;_G.flingNoclipConnection=nil;_G.flingPlayerNoclipParts={};_G.flingOtherNoclipParts={};_G.flingMasslessParts={};_G.collisionProtection=nil;_G.velocityMonitor=nil;_G.healthForceTimer=nil;_G.velocityProtection = nil
 -- [2] TROLL VARS
 _G.bangActive=false;_G.faceBangActive=false;_G.sitActive=false;_G.suckActive=false;_G.ragdollActive=false;_G.infiniteJumpActive=false;_G.noclipActive=false;_G.espEnabled=false;_G.jerkActive=false;_G.zeroGActive=false;_G.zeroGConnection=nil
 -- [3] CONNECTIONS
@@ -163,13 +163,14 @@ function toggleNoclip(b)_G.noclipActive=not _G.noclipActive if _G.noclipActive t
 function toggleESP(b)_G.espEnabled=not _G.espEnabled if _G.espEnabled then for _,p in Players:GetPlayers()do if p~=LP and p.Character then local h=Instance.new("Highlight",p.Character);h.Adornee=p.Character;h.FillColor=Color3.fromRGB(255,255,0);h.FillTransparency=0.5 end end if b then b.BackgroundColor3=Color3.fromRGB(100,200,100)end else for _,p in Players:GetPlayers()do if p.Character then local o=p.Character:FindFirstChildOfClass("Highlight")if o then o:Destroy()end end end if b then b.BackgroundColor3=Color3.fromRGB(150,170,200)end end end
 -- [22] RESET STATS
 function resetStats(b)if _G.bangActive then toggleBang()end if _G.faceBangActive then toggleFaceBang()end if _G.sitActive then toggleSit()end if _G.suckActive then toggleSuck()end if _G.ragdollActive then toggleRagdoll()end if _G.infiniteJumpActive then toggleInfiniteJump()end if _G.noclipActive then toggleNoclip()end if _G.espEnabled then toggleESP()end if _G.jerkActive then toggleJerk()end if _G.hiddenfling then _G.hiddenfling=false if _G.flingConnection then _G.flingConnection:Disconnect()_G.flingConnection=nil end end if b then b.BackgroundColor3=Color3.fromRGB(180,140,100)end end
--- [23] TOGGLE GOD MODE (SIN BUGS - ACTIVACIÓN INSTANTÁNEA)
+-- [23] TOGGLE GOD MODE (CON PROTECCIÓN CONTRA FRENAZOS)
 function toggleGodMode(b)
     _G.godModeActive = not _G.godModeActive
     
-    -- 🔥 SIEMPRE desconecta todo antes de activar/desactivar
+    -- Desconectar todas las conexiones anteriores
     if _G.godModeConnection then _G.godModeConnection:Disconnect() _G.godModeConnection = nil end
     if _G.fallDamageConnection then _G.fallDamageConnection:Disconnect() _G.fallDamageConnection = nil end
+    if _G.velocityProtection then _G.velocityProtection:Disconnect() _G.velocityProtection = nil end
     
     local character = LP.Character
     if not character then
@@ -184,22 +185,40 @@ function toggleGodMode(b)
     if not humanoid then return end
     
     if _G.godModeActive then
-        -- ACTIVAR (SIEMPRE funciona)
+        -- ACTIVAR GOD MODE
         humanoid.MaxHealth = math.huge
         humanoid.Health = math.huge
         
-        -- Única conexión para daño normal
+        -- Conexión para daño normal
         _G.godModeConnection = humanoid:GetPropertyChangedSignal("Health"):Connect(function()
             if _G.godModeActive and humanoid.Health < humanoid.MaxHealth then
                 humanoid.Health = humanoid.MaxHealth
             end
         end)
         
-        -- Única conexión para caídas
+        -- Conexión para caídas
         _G.fallDamageConnection = humanoid:GetPropertyChangedSignal("FloorMaterial"):Connect(function()
             if _G.godModeActive then
                 humanoid.Health = humanoid.MaxHealth
             end
+        end)
+        
+        -- 🆕 PROTECCIÓN CONTRA FRENAZOS (cambios bruscos de velocidad)
+        local lastVelocity = Vector3.new(0,0,0)
+        _G.velocityProtection = RS.Heartbeat:Connect(function()
+            if not _G.godModeActive then return end
+            local root = character:FindFirstChild("HumanoidRootPart")
+            if not root then return end
+            
+            local currentVel = root.Velocity
+            local change = (currentVel - lastVelocity).Magnitude
+            
+            -- Si hay un cambio brusco de velocidad (frenazo o aceleración repentina)
+            if change > 100 then
+                humanoid.Health = humanoid.MaxHealth
+            end
+            
+            lastVelocity = currentVel
         end)
         
         if b then
@@ -208,7 +227,7 @@ function toggleGodMode(b)
         end
         
     else
-        -- DESACTIVAR (SIEMPRE funciona)
+        -- DESACTIVAR GOD MODE
         humanoid.MaxHealth = 100
         humanoid.Health = 100
         
@@ -226,7 +245,6 @@ LP.CharacterAdded:Connect(function(newChar)
         if humanoid then
             humanoid.MaxHealth = math.huge
             humanoid.Health = math.huge
-            humanoid.UseJumpPower = true
             
             if _G.godModeConnection then _G.godModeConnection:Disconnect() end
             _G.godModeConnection = humanoid:GetPropertyChangedSignal("Health"):Connect(function()
@@ -242,54 +260,20 @@ LP.CharacterAdded:Connect(function(newChar)
                 end
             end)
             
-            if _G.fallVelocityConnection then _G.fallVelocityConnection:Disconnect() end
-            _G.fallVelocityConnection = RS.Heartbeat:Connect(function()
+            -- 🆕 Protección contra frenazos al renacer
+            if _G.velocityProtection then _G.velocityProtection:Disconnect() end
+            local lastVel = Vector3.new(0,0,0)
+            _G.velocityProtection = RS.Heartbeat:Connect(function()
                 if not _G.godModeActive then return end
                 local root = newChar:FindFirstChild("HumanoidRootPart")
-                if root and root.Velocity.Y < -50 then
-                    root.Velocity = Vector3.new(root.Velocity.X, -20, root.Velocity.Z)
-                end
-            end)
-            
-            if _G.godModeTimer then _G.godModeTimer:Disconnect() end
-            _G.godModeTimer = RS.Stepped:Connect(function()
-                if _G.godModeActive and humanoid and humanoid.Parent then
+                if not root then return end
+                local currentVel = root.Velocity
+                local change = (currentVel - lastVel).Magnitude
+                if change > 100 then
                     humanoid.Health = humanoid.MaxHealth
                 end
+                lastVel = currentVel
             end)
-            
-            -- NUEVAS PROTECCIONES AL RENACER
-            if _G.collisionProtection then _G.collisionProtection:Disconnect() end
-            _G.collisionProtection = newChar.ChildAdded:Connect(function(child)
-                if not _G.godModeActive then return end
-                task.wait()
-                if child:IsA("Part") and child:FindFirstChildOfClass("BodyVelocity") then
-                    humanoid.Health = humanoid.MaxHealth
-                end
-            end)
-            
-            if _G.velocityMonitor then _G.velocityMonitor:Disconnect() end
-            _G.velocityMonitor = RS.Heartbeat:Connect(function()
-                if not _G.godModeActive then return end
-                local root = newChar:FindFirstChild("HumanoidRootPart")
-                if root and root.Velocity.Magnitude > 100 then
-                    humanoid.Health = humanoid.MaxHealth
-                end
-            end)
-            
-            if _G.healthForceTimer then _G.healthForceTimer:Disconnect() end
-            _G.healthForceTimer = RS.Stepped:Connect(function()
-                if _G.godModeActive and humanoid and humanoid.Parent then
-                    humanoid.Health = humanoid.MaxHealth
-                end
-            end)
-            
-            -- Propiedades físicas especiales
-            for _, part in pairs(newChar:GetDescendants()) do
-                if part:IsA("BasePart") then
-                    part.CustomPhysicalProperties = PhysicalProperties.new(0.3, 0.3, 0.5, 0.5, 0.5)
-                end
-            end
         end
     end
 end)
