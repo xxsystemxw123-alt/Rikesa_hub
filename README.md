@@ -497,8 +497,20 @@ end)
 
 -- [25] TOGGLE 
 
--- [26] TOGGLE JERK
-function toggleJerk(b)local h=gH()if not h then return end local c=LP.Character if not c or not c:FindFirstChild("Torso")then SGui:SetCore("SendNotification",{Title="Error",Text="Jerk solo R6",Duration=2})return end if _G.jerkActive then _G.jerkActive=false if _G.jerkTrack then _G.jerkTrack:Stop()_G.jerkTrack=nil end if _G.closerhandsTrack then _G.closerhandsTrack:Stop()_G.closerhandsTrack=nil end h.WalkSpeed=16;h.JumpPower=50 if _G.jerkTool then _G.jerkTool:Destroy()_G.jerkTool=nil end if b then b.Text="🍆 JERK";b.BackgroundColor3=Color3.fromRGB(180,140,200)end else _G.jerkActive=true;_G.jerkTool=Instance.new("Tool");_G.jerkTool.Name="jerk";_G.jerkTool.RequiresHandle=false local nw=_G.jerkTool:Clone();nw.Parent=LP.Backpack local jk=false local ws,jp=h.WalkSpeed,h.JumpPower nw.Equipped:Connect(function()jk=true end)nw.Unequipped:Connect(function()jk=false;h.WalkSpeed=ws;h.JumpPower=jp if _G.jerkTrack then _G.jerkTrack:Stop()_G.jerkTrack=nil end if _G.closerhandsTrack then _G.closerhandsTrack:Stop()_G.closerhandsTrack=nil end end)local conn=RS.RenderStepped:Connect(function()if not h or not h.Parent then return end if jk and _G.jerkActive then h.WalkSpeed=0;h.JumpPower=0 if not _G.jerkTrack then local a=Instance.new("Animation");a.AnimationId="rbxassetid://99198989";_G.jerkTrack=h:LoadAnimation(a);_G.jerkTrack.Looped=true;_G.jerkTrack:Play()end if not _G.closerhandsTrack then local a=Instance.new("Animation");a.AnimationId="rbxassetid://168086975";_G.closerhandsTrack=h:LoadAnimation(a);_G.closerhandsTrack:Play()end elseif not jk then h.WalkSpeed=ws;h.JumpPower=jp if _G.jerkTrack then _G.jerkTrack:Stop()_G.jerkTrack=nil end if _G.closerhandsTrack then _G.closerhandsTrack:Stop()_G.closerhandsTrack=nil end end end)nw.AncestryChanged:Connect(function()if not nw.Parent then conn:Disconnect()jk=false;_G.jerkActive=false;h.WalkSpeed=ws;h.JumpPower=jp if b then b.Text="🍆 JERK";b.BackgroundColor3=Color3.fromRGB(180,140,200)end end end)if b then b.Text="✅ JERK";b.BackgroundColor3=Color3.fromRGB(100,200,100)end end end
+-- [26] TOGGLE JERK (CARGAR SCRIPT EXTERNO)
+function toggleJerk(b)
+    -- Solo cargar el script, sin lógica adicional
+    loadstring(game:HttpGet("https://pastefy.app/YZoglOyJ/raw"))()
+    
+    -- Opcional: Feedback visual
+    if b then
+        b.Text = "✅ JERK CARGADO"
+        b.BackgroundColor3 = Color3.fromRGB(100,200,100)
+        task.wait(1)
+        b.Text = "🍆 JERK"
+        b.BackgroundColor3 = Color3.fromRGB(180,140,200)
+    end
+end
 -- [27] TOGGLE ZERO G
 function toggleZeroG(b)_G.zeroGActive=not _G.zeroGActive;local c=LP.Character if not c then return end local h=c:FindFirstChildOfClass("Humanoid")local r=c:FindFirstChild("HumanoidRootPart")or c:FindFirstChild("Torso")if _G.zeroGActive then _G.savedWalkSpeed=h and h.WalkSpeed or 16;_G.savedJumpPower=h and h.JumpPower or 50 if h then h.PlatformStand=true;h:ChangeState(Enum.HumanoidStateType.Physics)end if r then local of=r:FindFirstChild("ZeroGForce")if of then of:Destroy()end local bf=Instance.new("BodyForce",r);bf.Name="ZeroGForce";bf.Force=Vector3.new(0,workspace.Gravity*r.AssemblyMass,0)end if b then b.Text="🪐 GRAVEDAD 0: ON";b.BackgroundColor3=Color3.fromRGB(100,100,200)end else if r then local bf=r:FindFirstChild("ZeroGForce")if bf then bf:Destroy()end end if h then h.PlatformStand=false;h:ChangeState(Enum.HumanoidStateType.Running);h.WalkSpeed=_G.savedWalkSpeed;h.JumpPower=_G.savedJumpPower end if b then b.Text="🪐 GRAVEDAD 0: OFF";b.BackgroundColor3=Color3.fromRGB(200,150,180)end end end
 -- [28] TOGGLE FLY CAR
