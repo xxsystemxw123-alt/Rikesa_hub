@@ -268,7 +268,6 @@ function toggleGodMode(b)
 end
 
 LP.CharacterAdded:Connect(function(newChar)
-LP.CharacterAdded:Connect(function(newChar)
     task.wait(0.5)
     if _G.godModeActive then
         local humanoid = newChar:FindFirstChildOfClass("Humanoid")
