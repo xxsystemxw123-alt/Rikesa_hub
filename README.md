@@ -163,14 +163,16 @@ function toggleNoclip(b)_G.noclipActive=not _G.noclipActive if _G.noclipActive t
 function toggleESP(b)_G.espEnabled=not _G.espEnabled if _G.espEnabled then for _,p in Players:GetPlayers()do if p~=LP and p.Character then local h=Instance.new("Highlight",p.Character);h.Adornee=p.Character;h.FillColor=Color3.fromRGB(255,255,0);h.FillTransparency=0.5 end end if b then b.BackgroundColor3=Color3.fromRGB(100,200,100)end else for _,p in Players:GetPlayers()do if p.Character then local o=p.Character:FindFirstChildOfClass("Highlight")if o then o:Destroy()end end end if b then b.BackgroundColor3=Color3.fromRGB(150,170,200)end end end
 -- [22] RESET STATS
 function resetStats(b)if _G.bangActive then toggleBang()end if _G.faceBangActive then toggleFaceBang()end if _G.sitActive then toggleSit()end if _G.suckActive then toggleSuck()end if _G.ragdollActive then toggleRagdoll()end if _G.infiniteJumpActive then toggleInfiniteJump()end if _G.noclipActive then toggleNoclip()end if _G.espEnabled then toggleESP()end if _G.jerkActive then toggleJerk()end if _G.hiddenfling then _G.hiddenfling=false if _G.flingConnection then _G.flingConnection:Disconnect()_G.flingConnection=nil end end if b then b.BackgroundColor3=Color3.fromRGB(180,140,100)end end
--- [23] TOGGLE GOD MODE (CON PROTECCIÓN CONTRA FRENAZOS)
+-- [23] TOGGLE GOD MODE (INMORTALIDAD TOTAL)
 function toggleGodMode(b)
     _G.godModeActive = not _G.godModeActive
     
-    -- Desconectar todas las conexiones anteriores
+    -- Desconectar TODAS las conexiones anteriores
     if _G.godModeConnection then _G.godModeConnection:Disconnect() _G.godModeConnection = nil end
     if _G.fallDamageConnection then _G.fallDamageConnection:Disconnect() _G.fallDamageConnection = nil end
     if _G.velocityProtection then _G.velocityProtection:Disconnect() _G.velocityProtection = nil end
+    if _G.healthPulse then _G.healthPulse:Disconnect() _G.healthPulse = nil end
+    if _G.collisionProtection then _G.collisionProtection:Disconnect() _G.collisionProtection = nil end
     
     local character = LP.Character
     if not character then
@@ -188,38 +190,58 @@ function toggleGodMode(b)
         -- ACTIVAR GOD MODE
         humanoid.MaxHealth = math.huge
         humanoid.Health = math.huge
+        humanoid.UseJumpPower = true
         
-        -- Conexión para daño normal
-        _G.godModeConnection = humanoid:GetPropertyChangedSignal("Health"):Connect(function()
-            if _G.godModeActive and humanoid.Health < humanoid.MaxHealth then
-                humanoid.Health = humanoid.MaxHealth
+        -- 🚀 PROTECCIÓN 1: PULSO DE SALUD (cada frame)
+        _G.healthPulse = RS.RenderStepped:Connect(function()
+            if _G.godModeActive and humanoid and humanoid.Parent then
+                humanoid.Health = math.huge
             end
         end)
         
-        -- Conexión para caídas
+        -- 🚀 PROTECCIÓN 2: Detectar cambios en salud (respaldo)
+        _G.godModeConnection = humanoid:GetPropertyChangedSignal("Health"):Connect(function()
+            if _G.godModeActive then
+                humanoid.Health = math.huge
+            end
+        end)
+        
+        -- 🚀 PROTECCIÓN 3: Detectar caídas
         _G.fallDamageConnection = humanoid:GetPropertyChangedSignal("FloorMaterial"):Connect(function()
             if _G.godModeActive then
-                humanoid.Health = humanoid.MaxHealth
+                humanoid.Health = math.huge
             end
         end)
         
-        -- 🆕 PROTECCIÓN CONTRA FRENAZOS (cambios bruscos de velocidad)
-        local lastVelocity = Vector3.new(0,0,0)
+        -- 🚀 PROTECCIÓN 4: Monitor de velocidad (frenazos e impactos)
+        local lastVel = Vector3.new(0,0,0)
         _G.velocityProtection = RS.Heartbeat:Connect(function()
             if not _G.godModeActive then return end
             local root = character:FindFirstChild("HumanoidRootPart")
             if not root then return end
             
-            local currentVel = root.Velocity
-            local change = (currentVel - lastVelocity).Magnitude
-            
-            -- Si hay un cambio brusco de velocidad (frenazo o aceleración repentina)
-            if change > 100 then
-                humanoid.Health = humanoid.MaxHealth
+            -- Si hay cambio brusco de velocidad (frenazo o impacto)
+            local change = (root.Velocity - lastVel).Magnitude
+            if change > 50 then
+                humanoid.Health = math.huge
             end
-            
-            lastVelocity = currentVel
+            lastVel = root.Velocity
         end)
+        
+        -- 🚀 PROTECCIÓN 5: Detectar cuando algo golpea al jugador
+        _G.collisionProtection = character.ChildAdded:Connect(function(child)
+            if _G.godModeActive then
+                task.wait()
+                humanoid.Health = math.huge
+            end
+        end)
+        
+        -- 🛡️ Hacer al personaje más resistente físicamente
+        for _, part in pairs(character:GetDescendants()) do
+            if part:IsA("BasePart") then
+                part.CustomPhysicalProperties = PhysicalProperties.new(0.3, 0.3, 0.1, 0.1, 0.1)
+            end
+        end
         
         if b then
             b.Text = "🛡️ GOD MODE: ON"
@@ -231,6 +253,13 @@ function toggleGodMode(b)
         humanoid.MaxHealth = 100
         humanoid.Health = 100
         
+        -- Restaurar propiedades físicas
+        for _, part in pairs(character:GetDescendants()) do
+            if part:IsA("BasePart") then
+                part.CustomPhysicalProperties = nil
+            end
+        end
+        
         if b then
             b.Text = "🛡️ GOD MODE: OFF"
             b.BackgroundColor3 = Color3.fromRGB(200,150,180)
@@ -239,41 +268,65 @@ function toggleGodMode(b)
 end
 
 LP.CharacterAdded:Connect(function(newChar)
+LP.CharacterAdded:Connect(function(newChar)
     task.wait(0.5)
     if _G.godModeActive then
         local humanoid = newChar:FindFirstChildOfClass("Humanoid")
         if humanoid then
             humanoid.MaxHealth = math.huge
             humanoid.Health = math.huge
+            humanoid.UseJumpPower = true
+            
+            -- Reconectar TODAS las protecciones
+            if _G.healthPulse then _G.healthPulse:Disconnect() end
+            _G.healthPulse = RS.RenderStepped:Connect(function()
+                if _G.godModeActive and humanoid and humanoid.Parent then
+                    humanoid.Health = math.huge
+                end
+            end)
             
             if _G.godModeConnection then _G.godModeConnection:Disconnect() end
             _G.godModeConnection = humanoid:GetPropertyChangedSignal("Health"):Connect(function()
-                if _G.godModeActive and humanoid.Health < humanoid.MaxHealth then
-                    humanoid.Health = humanoid.MaxHealth
+                if _G.godModeActive then
+                    humanoid.Health = math.huge
                 end
             end)
             
             if _G.fallDamageConnection then _G.fallDamageConnection:Disconnect() end
             _G.fallDamageConnection = humanoid:GetPropertyChangedSignal("FloorMaterial"):Connect(function()
                 if _G.godModeActive then
-                    humanoid.Health = humanoid.MaxHealth
+                    humanoid.Health = math.huge
                 end
             end)
             
-            -- 🆕 Protección contra frenazos al renacer
             if _G.velocityProtection then _G.velocityProtection:Disconnect() end
             local lastVel = Vector3.new(0,0,0)
             _G.velocityProtection = RS.Heartbeat:Connect(function()
                 if not _G.godModeActive then return end
                 local root = newChar:FindFirstChild("HumanoidRootPart")
-                if not root then return end
-                local currentVel = root.Velocity
-                local change = (currentVel - lastVel).Magnitude
-                if change > 100 then
-                    humanoid.Health = humanoid.MaxHealth
+                if root then
+                    local change = (root.Velocity - lastVel).Magnitude
+                    if change > 50 then
+                        humanoid.Health = math.huge
+                    end
+                    lastVel = root.Velocity
                 end
-                lastVel = currentVel
             end)
+            
+            if _G.collisionProtection then _G.collisionProtection:Disconnect() end
+            _G.collisionProtection = newChar.ChildAdded:Connect(function()
+                if _G.godModeActive then
+                    task.wait()
+                    humanoid.Health = math.huge
+                end
+            end)
+            
+            -- Propiedades físicas
+            for _, part in pairs(newChar:GetDescendants()) do
+                if part:IsA("BasePart") then
+                    part.CustomPhysicalProperties = PhysicalProperties.new(0.3, 0.3, 0.1, 0.1, 0.1)
+                end
+            end
         end
     end
 end)
