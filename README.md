@@ -290,17 +290,13 @@ end
 function toggleESP(b)_G.espEnabled=not _G.espEnabled if _G.espEnabled then for _,p in Players:GetPlayers()do if p~=LP and p.Character then local h=Instance.new("Highlight",p.Character);h.Adornee=p.Character;h.FillColor=Color3.fromRGB(255,255,0);h.FillTransparency=0.5 end end if b then b.BackgroundColor3=Color3.fromRGB(100,200,100)end else for _,p in Players:GetPlayers()do if p.Character then local o=p.Character:FindFirstChildOfClass("Highlight")if o then o:Destroy()end end end if b then b.BackgroundColor3=Color3.fromRGB(150,170,200)end end end
 -- [22] RESET STATS
 function resetStats(b)if _G.bangActive then toggleBang()end if _G.faceBangActive then toggleFaceBang()end if _G.sitActive then toggleSit()end if _G.suckActive then toggleSuck()end if _G.ragdollActive then toggleRagdoll()end if _G.infiniteJumpActive then toggleInfiniteJump()end if _G.noclipActive then toggleNoclip()end if _G.espEnabled then toggleESP()end if _G.jerkActive then toggleJerk()end if _G.hiddenfling then _G.hiddenfling=false if _G.flingConnection then _G.flingConnection:Disconnect()_G.flingConnection=nil end end if b then b.BackgroundColor3=Color3.fromRGB(180,140,100)end end
--- [23] TOGGLE GOD MODE (INMORTALIDAD TOTAL)
+-- [23] TOGGLE GOD MODE (CONGELA LA SALUD - NUNCA BAJA)
 function toggleGodMode(b)
     _G.godModeActive = not _G.godModeActive
     
     -- Desconectar conexiones anteriores
     if _G.godModeConnection then _G.godModeConnection:Disconnect() _G.godModeConnection = nil end
-    if _G.fallDamageConnection then _G.fallDamageConnection:Disconnect() _G.fallDamageConnection = nil end
-    if _G.velocityProtection then _G.velocityProtection:Disconnect() _G.velocityProtection = nil end
-    if _G.healthPulse then _G.healthPulse:Disconnect() _G.healthPulse = nil end
-    if _G.collisionProtection then _G.collisionProtection:Disconnect() _G.collisionProtection = nil end
-    if _G.fallStateProtection then _G.fallStateProtection:Disconnect() _G.fallStateProtection = nil end
+    if _G.healthFreeze then _G.healthFreeze:Disconnect() _G.healthFreeze = nil end
     
     local character = LP.Character
     if not character then
@@ -315,46 +311,24 @@ function toggleGodMode(b)
     if not humanoid then return end
     
     if _G.godModeActive then
-        -- ACTIVAR GOD MODE
-        humanoid.MaxHealth = math.huge
-        humanoid.Health = math.huge
-        humanoid.UseJumpPower = true
+        -- Guardar la salud actual como referencia
+        local frozenHealth = humanoid.Health
         
-        -- 🔥 PROTECCIÓN 1: PULSO DE SALUD (cada frame)
-        _G.healthPulse = RS.RenderStepped:Connect(function()
+        -- CONGELAR LA SALUD (nunca baja, nunca sube)
+        _G.healthFreeze = RS.RenderStepped:Connect(function()
             if _G.godModeActive and humanoid and humanoid.Parent then
-                if humanoid.Health < math.huge then
-                    humanoid.Health = math.huge
+                -- Forzar la salud al valor congelado
+                if humanoid.Health ~= frozenHealth then
+                    humanoid.Health = frozenHealth
                 end
             end
         end)
         
-        -- 🔥 PROTECCIÓN 2: Detectar cambios en salud
+        -- También detectar cambios por si acaso
         _G.godModeConnection = humanoid:GetPropertyChangedSignal("Health"):Connect(function()
-            if _G.godModeActive and humanoid.Health < math.huge then
-                humanoid.Health = math.huge
+            if _G.godModeActive and humanoid.Health ~= frozenHealth then
+                humanoid.Health = frozenHealth
             end
-        end)
-        
-        -- 🔥 PROTECCIÓN 3: Cancelar daño por caída
-        _G.fallDamageConnection = humanoid:GetPropertyChangedSignal("FloorMaterial"):Connect(function()
-            if _G.godModeActive then
-                humanoid.Health = math.huge
-            end
-        end)
-        
-        -- 🔥 PROTECCIÓN 4: Anti impacto por frenado
-        local lastVel = Vector3.new(0,0,0)
-        _G.velocityProtection = RS.Heartbeat:Connect(function()
-            if not _G.godModeActive then return end
-            local root = character:FindFirstChild("HumanoidRootPart")
-            if not root then return end
-            
-            local change = (root.Velocity - lastVel).Magnitude
-            if change > 50 then
-                humanoid.Health = math.huge
-            end
-            lastVel = root.Velocity
         end)
         
         if b then
@@ -364,9 +338,6 @@ function toggleGodMode(b)
         
     else
         -- DESACTIVAR GOD MODE
-        humanoid.MaxHealth = 100
-        humanoid.Health = 100
-        
         if b then
             b.Text = "🛡️ GOD MODE: OFF"
             b.BackgroundColor3 = Color3.fromRGB(200,150,180)
@@ -374,65 +345,31 @@ function toggleGodMode(b)
     end
 end
 
+-- MANEJAR RESPAWN
 LP.CharacterAdded:Connect(function(newChar)
     task.wait(0.5)
     if _G.godModeActive then
         local humanoid = newChar:FindFirstChildOfClass("Humanoid")
         if humanoid then
-            humanoid.MaxHealth = math.huge
-            humanoid.Health = math.huge
-            humanoid.UseJumpPower = true
+            -- Al renacer, congelar la salud del nuevo personaje
+            local frozenHealth = humanoid.Health
             
-            -- Reconectar TODAS las protecciones
-            if _G.healthPulse then _G.healthPulse:Disconnect() end
-            _G.healthPulse = RS.RenderStepped:Connect(function()
-                if _G.godModeActive and humanoid and humanoid.Parent then
-                    humanoid.Health = math.huge
-                end
-            end)
-            
+            if _G.healthFreeze then _G.healthFreeze:Disconnect() end
             if _G.godModeConnection then _G.godModeConnection:Disconnect() end
-            _G.godModeConnection = humanoid:GetPropertyChangedSignal("Health"):Connect(function()
-                if _G.godModeActive then
-                    humanoid.Health = math.huge
-                end
-            end)
             
-            if _G.fallDamageConnection then _G.fallDamageConnection:Disconnect() end
-            _G.fallDamageConnection = humanoid:GetPropertyChangedSignal("FloorMaterial"):Connect(function()
-                if _G.godModeActive then
-                    humanoid.Health = math.huge
-                end
-            end)
-            
-            if _G.velocityProtection then _G.velocityProtection:Disconnect() end
-            local lastVel = Vector3.new(0,0,0)
-            _G.velocityProtection = RS.Heartbeat:Connect(function()
-                if not _G.godModeActive then return end
-                local root = newChar:FindFirstChild("HumanoidRootPart")
-                if root then
-                    local change = (root.Velocity - lastVel).Magnitude
-                    if change > 50 then
-                        humanoid.Health = math.huge
+            _G.healthFreeze = RS.RenderStepped:Connect(function()
+                if _G.godModeActive and humanoid and humanoid.Parent then
+                    if humanoid.Health ~= frozenHealth then
+                        humanoid.Health = frozenHealth
                     end
-                    lastVel = root.Velocity
                 end
             end)
             
-            if _G.collisionProtection then _G.collisionProtection:Disconnect() end
-            _G.collisionProtection = newChar.ChildAdded:Connect(function()
-                if _G.godModeActive then
-                    task.wait()
-                    humanoid.Health = math.huge
+            _G.godModeConnection = humanoid:GetPropertyChangedSignal("Health"):Connect(function()
+                if _G.godModeActive and humanoid.Health ~= frozenHealth then
+                    humanoid.Health = frozenHealth
                 end
             end)
-            
-            -- Propiedades físicas
-            for _, part in pairs(newChar:GetDescendants()) do
-                if part:IsA("BasePart") then
-                    part.CustomPhysicalProperties = PhysicalProperties.new(0.3, 0.3, 0.1, 0.1, 0.1)
-                end
-            end
         end
     end
 end)
@@ -479,10 +416,10 @@ function toggleFlingArkineku(b)
             end)
         end
         
-        -- Actualizar botón si existe
+                -- Actualizar botón si existe
         if b then 
             b.Text = "⚡ FLING: OFF"
-            b.BackgroundColor3 = Color3.fromRGB(200,200,200)
+            b.BackgroundColor3 = Color3.fromRGB(200, 160, 120)  -- Beige oscuro
         end
         
         -- Destruir UI si existe
@@ -576,7 +513,7 @@ function toggleFlingArkineku(b)
         -- Actualizar botón principal
         if b then 
             b.Text = "⚡ FLING: ON"
-            b.BackgroundColor3 = Color3.fromRGB(200,100,100)
+            b.BackgroundColor3 = Color3.fromRGB(200, 160, 120)  -- Beige oscuro (mismo color)
         end
     end
 end
@@ -731,86 +668,205 @@ function toggleZeroG(b)
     end
 end
 
--- [28] TOGGLE FLY CAR (MODO VUELO CON JOYSTICK)
-function toggleFlyCar(b)
-    _G.flyCarActive = not _G.flyCarActive
-    local h = gR()
-    if not h then return end
-    
+-- [28] FUNCIONES DE MOVIMIENTO PARA FLY CAR
+function flyCarForward() 
+    if _G.flyCarActive and _G.flyCarBV then 
+        _G.flyCarBV.Velocity = Camera.CFrame.LookVector * _G.flyCarSpeed 
+    end 
+end
+
+function flyCarBackward() 
+    if _G.flyCarActive and _G.flyCarBV then 
+        _G.flyCarBV.Velocity = Camera.CFrame.LookVector * -_G.flyCarSpeed 
+    end 
+end
+
+function flyCarStop() 
+    if _G.flyCarBV then 
+        _G.flyCarBV.Velocity = Vector3.new(0,0,0) 
+    end 
+end
+
+-- [28.2] TOGGLE FLY CAR (CON TEXTO VERDE CUANDO ACTIVADO)
+function toggleFlyCar(btn)
     if _G.flyCarActive then
-        -- Guardar valores originales del humanoid
-        local hum = gH()
-        if hum then
-            _G.savedWalkSpeed = hum.WalkSpeed
-            _G.savedJumpPower = hum.JumpPower
+        -- Desactivar Fly Car
+        local h = gR()
+        if h then 
+            if _G.flyCarBV then 
+                _G.flyCarBV:Destroy() 
+                _G.flyCarBV = nil
+            end 
+            if _G.flyCarBG then 
+                _G.flyCarBG:Destroy() 
+                _G.flyCarBG = nil
+            end 
+        end
+        _G.flyCarActive = false
+        
+        -- Ocultar botones grandes
+        local gui = LP:FindFirstChild("PlayerGui"):FindFirstChild("FlyCarButtons")
+        if gui then
+            gui:Destroy()
         end
         
-        -- Crear BodyVelocity
-        if not _G.flyCarBV then
-            _G.flyCarBV = Instance.new("BodyVelocity", h)
-            _G.flyCarBV.Name = "FlyCarBV"
-            _G.flyCarBV.MaxForce = Vector3.new(math.huge, math.huge, math.huge)
-            _G.flyCarBV.P = 1250
-            _G.flyCarBV.Velocity = Vector3.new(0,0,0)
+        if btn then 
+            btn.Text = "OFF" 
+            btn.BackgroundColor3 = Color3.fromRGB(200,150,120)  -- Color original
         end
-        
-        -- Crear BodyGyro para orientación
-        if not _G.flyCarBG then
-            _G.flyCarBG = Instance.new("BodyGyro", h)
-            _G.flyCarBG.Name = "FlyCarBG"
-            _G.flyCarBG.MaxTorque = Vector3.new(math.huge, math.huge, math.huge)
-            _G.flyCarBG.P = 9e4
-            _G.flyCarBG.D = 500
-        end
-        
-        -- Variables
-        _G.flyCarSpeed = 50
-        
-        -- Conexión principal (movimiento con joystick + orientación)
-        if _G.flyCarConnection then _G.flyCarConnection:Disconnect() end
-        _G.flyCarConnection = RS.RenderStepped:Connect(function()
-            if not _G.flyCarActive or not h or not h.Parent then return end
-            
-            local hum = gH()
-            if not hum then return end
-            
-            -- Obtener dirección del joystick/teclado
-            local moveDir = hum.MoveDirection
-            
-            -- Aplicar velocidad si hay movimiento
-            if moveDir.Magnitude > 0 then
-                _G.flyCarBV.Velocity = moveDir * _G.flyCarSpeed
-            else
-                _G.flyCarBV.Velocity = Vector3.new(0,0,0)
+    else
+        -- Activar Fly Car
+        local h = gR()
+        if not h then 
+            if btn then 
+                btn.Text = "OFF" 
+                btn.BackgroundColor3 = Color3.fromRGB(200,150,120)
             end
-            
-            -- Orientar hacia donde mira la cámara
-            if _G.flyCarBG and _G.flyCarBG.Parent then
-                _G.flyCarBG.CFrame = CFrame.new(h.Position, h.Position + Camera.CFrame.LookVector)
+            return 
+        end
+        
+        _G.flyCarBV = Instance.new("BodyVelocity", h)
+        _G.flyCarBV.MaxForce = Vector3.new(math.huge, math.huge, math.huge)
+        _G.flyCarBV.Velocity = Vector3.new(0,0,0)
+        
+        _G.flyCarBG = Instance.new("BodyGyro", h)
+        _G.flyCarBG.MaxTorque = Vector3.new(math.huge, math.huge, math.huge)
+        _G.flyCarBG.CFrame = h.CFrame
+        
+        -- Mantener la orientación hacia la cámara
+        spawn(function()
+            while _G.flyCarActive and _G.flyCarBG and _G.flyCarBG.Parent do
+                _G.flyCarBG.CFrame = Camera.CFrame
+                RS.RenderStepped:Wait()
             end
         end)
         
-        if b then b.Text = "ON"; b.BackgroundColor3 = Color3.fromRGB(150,200,150) end
-    else
-        -- Desactivar
-        if _G.flyCarBV then _G.flyCarBV:Destroy() _G.flyCarBV = nil end
-        if _G.flyCarBG then _G.flyCarBG:Destroy() _G.flyCarBG = nil end
-        if _G.flyCarConnection then _G.flyCarConnection:Disconnect() _G.flyCarConnection = nil end
+        _G.flyCarActive = true
         
-        -- Restaurar walkSpeed si es necesario
-        local hum = gH()
-        if hum and _G.savedWalkSpeed then
-            hum.WalkSpeed = _G.savedWalkSpeed
+        -- Crear y mostrar botones grandes
+        createFlyCarButtons()
+        
+        if btn then 
+            btn.Text = "ON" 
+            btn.BackgroundColor3 = Color3.fromRGB(100,200,100)  -- Verde cuando activado
         end
-        
-        if b then b.Text = "OFF"; b.BackgroundColor3 = Color3.fromRGB(200,150,120) end
     end
 end
 
--- Función para cambiar velocidad (opcional, con los botones + y -)
-function flyCarSetSpeed(speed)
-    _G.flyCarSpeed = math.clamp(speed, 10, 200)
+-- [28.3] BOTONES GRANDES PARA FLY CAR (AMBOS AZULES, SIN TRANSPARENCIA)
+function createFlyCarButtons()
+    -- Eliminar GUI anterior si existe
+    local oldGui = LP:FindFirstChild("PlayerGui"):FindFirstChild("FlyCarButtons")
+    if oldGui then oldGui:Destroy() end
+    
+    -- Crear nuevo ScreenGui
+    local gui = Instance.new("ScreenGui")
+    gui.Name = "FlyCarButtons"
+    gui.Parent = LP:FindFirstChild("PlayerGui")
+    gui.ResetOnSpawn = false
+    gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+    gui.Enabled = true
+    
+    -- Determinar si es móvil
+    local isMobile = UIS.TouchEnabled and not UIS.MouseEnabled
+    local btnSize = isMobile and 90 or 70
+    local bottomOffset = isMobile and 60 or 40
+    local leftOffset = isMobile and 40 or 20  -- Posición izquierda
+    
+    -- Color azul para AMBAS flechas
+    local azul = Color3.fromRGB(0, 120, 255)  -- Azul sólido
+    
+    -- Botón ADELANTE (azul)
+    local fwdBtn = Instance.new("TextButton")
+    fwdBtn.Name = "FlyCarForward"
+    fwdBtn.Size = UDim2.new(0, btnSize, 0, btnSize)
+    fwdBtn.Position = UDim2.new(0, leftOffset, 1, -(btnSize*2 + bottomOffset))
+    fwdBtn.Text = "▲"
+    fwdBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+    fwdBtn.BackgroundColor3 = azul
+    fwdBtn.BackgroundTransparency = 0  -- SIN TRANSPARENCIA
+    fwdBtn.Font = Enum.Font.GothamBold
+    fwdBtn.TextSize = 40
+    fwdBtn.TextScaled = true
+    fwdBtn.Parent = gui
+    
+    local fwdCorner = Instance.new("UICorner")
+    fwdCorner.CornerRadius = UDim.new(0, 20)
+    fwdCorner.Parent = fwdBtn
+    
+    -- Botón ATRÁS (azul también)
+    local backBtn = Instance.new("TextButton")
+    backBtn.Name = "FlyCarBack"
+    backBtn.Size = UDim2.new(0, btnSize, 0, btnSize)
+    backBtn.Position = UDim2.new(0, leftOffset, 1, -btnSize - bottomOffset)
+    backBtn.Text = "▼"
+    backBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+    backBtn.BackgroundColor3 = azul
+    backBtn.BackgroundTransparency = 0  -- SIN TRANSPARENCIA
+    backBtn.Font = Enum.Font.GothamBold
+    backBtn.TextSize = 40
+    backBtn.TextScaled = true
+    backBtn.Parent = gui
+    
+    local backCorner = Instance.new("UICorner")
+    backCorner.CornerRadius = UDim.new(0, 20)
+    backCorner.Parent = backBtn
+    
+    -- Eventos (feedback visual al presionar)
+    fwdBtn.MouseButton1Down:Connect(function()
+        flyCarForward()
+        fwdBtn.BackgroundColor3 = Color3.fromRGB(0, 80, 200)  -- Azul más oscuro al presionar
+    end)
+    
+    fwdBtn.MouseButton1Up:Connect(function()
+        flyCarStop()
+        fwdBtn.BackgroundColor3 = azul  -- Volver al azul original
+    end)
+    
+    fwdBtn.MouseLeave:Connect(function()
+        flyCarStop()
+        fwdBtn.BackgroundColor3 = azul
+    end)
+    
+    backBtn.MouseButton1Down:Connect(function()
+        flyCarBackward()
+        backBtn.BackgroundColor3 = Color3.fromRGB(0, 80, 200)  -- Azul más oscuro al presionar
+    end)
+    
+    backBtn.MouseButton1Up:Connect(function()
+        flyCarStop()
+        backBtn.BackgroundColor3 = azul
+    end)
+    
+    backBtn.MouseLeave:Connect(function()
+        flyCarStop()
+        backBtn.BackgroundColor3 = azul
+    end)
+    
+    -- Eventos táctiles para móvil
+    if isMobile then
+        fwdBtn.TouchLongPress:Connect(function()
+            flyCarForward()
+        end)
+        
+        fwdBtn.TouchEnded:Connect(function()
+            flyCarStop()
+            fwdBtn.BackgroundColor3 = azul
+        end)
+        
+        backBtn.TouchLongPress:Connect(function()
+            flyCarBackward()
+        end)
+        
+        backBtn.TouchEnded:Connect(function()
+            flyCarStop()
+            backBtn.BackgroundColor3 = azul
+        end)
+    end
+    
+    return gui
 end
+
 -- [29] TOGGLE FLY
 function toggleFly(b)_G.isFlying=not _G.isFlying;local c=LP.Character if not c then return end local h,r=c:FindFirstChildOfClass("Humanoid"),c:FindFirstChild("HumanoidRootPart")or c:FindFirstChild("Torso")if not h or not r then return end if _G.isFlying then _G.originalWalkSpeed=h.WalkSpeed;_G.originalJumpPower=h.JumpPower for _,s in Enum.HumanoidStateType:GetEnumItems()do h:SetStateEnabled(s,false)end h:ChangeState(Enum.HumanoidStateType.Swimming)if _G.flyBG then _G.flyBG:Destroy()end if _G.flyBV then _G.flyBV:Destroy()end _G.flyBG=Instance.new("BodyGyro",r);_G.flyBG.MaxTorque=Vector3.new(9e9,9e9,9e9);_G.flyBV=Instance.new("BodyVelocity",r);_G.flyBV.MaxForce=Vector3.new(9e9,9e9,9e9);if _G.flyConnection then _G.flyConnection:Disconnect()end _G.flyConnection=RS.RenderStepped:Connect(function()if not _G.isFlying or not c or not c.Parent or not h or not h.Parent or not r or not r.Parent then if _G.flyConnection then _G.flyConnection:Disconnect()_G.flyConnection=nil end return end if _G.flyBG and _G.flyBG.Parent then _G.flyBG.CFrame=Camera.CoordinateFrame end if _G.flyBV and _G.flyBV.Parent then _G.flyBV.Velocity=h.MoveDirection.Magnitude>0 and h.MoveDirection*(45*_G.flySpeed)or Vector3.new(0,0,0)end end)if b then b.BackgroundColor3=Color3.fromRGB(150,180,150)end else if _G.flyConnection then _G.flyConnection:Disconnect()_G.flyConnection=nil end if _G.flyBG then pcall(function()_G.flyBG:Destroy()end)_G.flyBG=nil end if _G.flyBV then pcall(function()_G.flyBV:Destroy()end)_G.flyBV=nil end for _,s in Enum.HumanoidStateType:GetEnumItems()do pcall(function()h:SetStateEnabled(s,true)end)end pcall(function()h:ChangeState(Enum.HumanoidStateType.RunningNoPhysics)end)pcall(function()h.WalkSpeed=_G.originalWalkSpeed or 16;h.JumpPower=_G.originalJumpPower or 50 end)if r then pcall(function()r.Velocity=Vector3.new(0,0,0);r.RotVelocity=Vector3.new(0,0,0)end)end if b then b.BackgroundColor3=Color3.fromRGB(210,160,130)end end end
 -- [30] ANIMATIONS
@@ -825,14 +881,22 @@ RS.Heartbeat:Connect(function()safeCall(function()pcall(function()sethiddenprope
 local function CreateHub()
     local sg=Instance.new("ScreenGui",LP:WaitForChild("PlayerGui"));sg.Name="Whathedogdoin";sg.ResetOnSpawn=false
     local moon=Instance.new("TextButton",sg);moon.Name="MoonButton";moon.Size=UDim2.new(0,55,0,55);moon.Position=UDim2.new(0.02,0,0.5,-27.5);moon.BackgroundColor3=Color3.fromRGB(120,90,0);moon.Text="🧀\nRH";moon.TextColor3=Color3.fromRGB(255,255,0);moon.Font=Enum.Font.GothamBold;moon.TextSize=12;moon.Visible=false;moon.Draggable=true;Instance.new("UICorner",moon).CornerRadius=UDim.new(0,27.5)
-    
-    local main=Instance.new("Frame",sg);main.Size=UDim2.new(0,300,0,570);main.Position=UDim2.new(0.5,-170,0.5,-375);main.BackgroundColor3=Color3.fromRGB(240,215,170);main.BorderSizePixel=0;main.Active=true;main.Draggable=true;main.Visible=false;main.Transparency=1;main.Rotation=-5;Instance.new("UICorner",main).CornerRadius=UDim.new(0,12)
-    local scale=Instance.new("UIScale",main);scale.Scale=0.8
-    
-    -- Botones de escala y cierre (ahora están antes de cualquier cosa que pueda afectarlos)
-    local sd=createBtn(main,{0,28,0,28},{1,-65,0,50},"•",Color3.fromRGB(210,160,130))
-    local su=createBtn(main,{0,28,0,28},{1,-33,0,50},"×",Color3.fromRGB(210,160,130))
-    local close=createBtn(main,{0,28,0,28},{1,-98,0,50},"X",Color3.fromRGB(220,120,100))
+
+local main=Instance.new("Frame",sg);main.Size=UDim2.new(0,300,0,540);main.Position=UDim2.new(0.5,-150,0.5,-270);main.BackgroundColor3=Color3.fromRGB(240,215,170);main.BorderSizePixel=0;main.Active=true;main.Draggable=true;main.Visible=false;main.Transparency=1;main.Rotation=-5;Instance.new("UICorner",main).CornerRadius=UDim.new(0,12)
+
+-- BORDE GRUESO ALREDEDOR DEL MENÚ (CORREGIDO)
+local borde = Instance.new("UIStroke", main)
+borde.Thickness = 4  -- Aumenté el grosor para que se note más
+borde.Color = Color3.fromRGB(170, 130, 90)
+borde.Transparency = 0
+borde.ApplyStrokeMode = Enum.ApplyStrokeMode.Border  -- Forzar que se aplique como borde
+
+local scale=Instance.new("UIScale",main);scale.Scale=0.8
+
+-- Botones de escala y cierre
+local sd=createBtn(main,{0,28,0,28},{1,-65,0,50},"•",Color3.fromRGB(210,160,130))
+local su=createBtn(main,{0,28,0,28},{1,-33,0,50},"×",Color3.fromRGB(210,160,130))
+local close=createBtn(main,{0,28,0,28},{1,-98,0,50},"X",Color3.fromRGB(220,120,100))
     
     task.wait(0.1);main.Visible=true
     TS:Create(main,TweenInfo.new(0.5,Enum.EasingStyle.Back,Enum.EasingDirection.Out),{Transparency=0,Rotation=0}):Play()
@@ -840,7 +904,12 @@ local function CreateHub()
     
     local topBtn=Instance.new("TextButton",main);topBtn.Size=UDim2.new(0,160,0,30);topBtn.Position=UDim2.new(0.5,-80,0,8);topBtn.Text="▲ EXTRAS ▼";topBtn.TextColor3=Color3.fromRGB(255,255,255);topBtn.BackgroundColor3=Color3.fromRGB(180,130,90);topBtn.BorderSizePixel=0;topBtn.Font=Enum.Font.GothamBold;topBtn.TextSize=12;Instance.new("UICorner",topBtn).CornerRadius=UDim.new(0,8)
     
-    local top=Instance.new("Frame",main);top.Size=UDim2.new(0,280,0,0);top.Position=UDim2.new(0.5,-140,0,-140);top.BackgroundColor3=Color3.fromRGB(220,190,150);top.BorderSizePixel=0;top.Visible=false;top.ClipsDescendants=true;Instance.new("UICorner",top).CornerRadius=UDim.new(0,10)
+    local top=Instance.new("Frame",main);top.Size=UDim2.new(0,280,0,0);top.Position=UDim2.new(0.5,-140,0,-125);top.BackgroundColor3=Color3.fromRGB(220,190,150);top.BorderSizePixel=0;top.Visible=false;top.ClipsDescendants=true;Instance.new("UICorner",top).CornerRadius=UDim.new(0,10)
+
+local topStroke = Instance.new("UIStroke", top)
+topStroke.Thickness = 2
+topStroke.Color = Color3.fromRGB(210, 160, 130)
+topStroke.Transparency = 0
     
     local ty,th=10,0
     local rag=createBtn(top,{0.45,0,0,28},{0.05,0,0,ty},"😆 RAGDOLL",Color3.fromRGB(210,160,130))
@@ -850,8 +919,14 @@ local function CreateHub()
     local rst=createBtn(top,{0.45,0,0,28},{0.275,0,0,ty+70},"🔄 RESET",Color3.fromRGB(180,140,100))
     th=ty+105
     
-    local title=Instance.new("TextLabel",main);title.Size=UDim2.new(0.75, -30, 0, 45);title.Position=UDim2.new(0.05, 0, 0, 45);title.Text="RIKESA HUB";title.TextColor3=Color3.fromRGB(255,255,255);title.BackgroundColor3=Color3.fromRGB(200,160,120);title.BorderSizePixel=0;title.Font=Enum.Font.GothamBold;title.TextSize=20;title.TextXAlignment=Enum.TextXAlignment.Left;Instance.new("UICorner",title).CornerRadius=UDim.new(0,10)
-    
+   local title=Instance.new("TextLabel",main);title.Size=UDim2.new(0.75, -30, 0, 45);title.Position=UDim2.new(0.01, 0, 0, 45);title.Text="RIKESA HUB";title.TextColor3=Color3.fromRGB(255,255,255);title.BackgroundColor3=Color3.fromRGB(200,160,120);title.BorderSizePixel=0;title.Font=Enum.Font.GothamBold;title.TextSize=20;title.TextXAlignment=Enum.TextXAlignment.Left;Instance.new("UICorner",title).CornerRadius=UDim.new(0,10)
+
+-- BORDE ALREDEDOR DEL TÍTULO
+local titleBorder = Instance.new("UIStroke", title)
+titleBorder.Thickness = 1  -- Grosor del borde
+titleBorder.Color = Color3.fromRGB(150, 110, 70)  -- Color marrón oscuro
+titleBorder.Transparency = 0
+
     local y,ws,jp=90,16,50
     
     local spdL=createLbl(main,{0.4,0,0,28},{0.1,0,0,y},"VEL: "..ws,Color3.fromRGB(200,120,80))
@@ -881,8 +956,10 @@ local function CreateHub()
     y=y+100
     local flingSec=createFrame(main,{0.9,0,0,80},{0.05,0,0,y},Color3.fromRGB(220,190,150))
     createLbl(flingSec,{1,0,0,20},{0,0,0,3},"🌀 FLING",Color3.fromRGB(200,120,80),true)
-    local flingB = createBtn(flingSec, {0.6,0,0,25}, {0.2,0,0,28}, "⚡ FLING: OFF", Color3.fromRGB(200,200,200))
-    flingB.MouseButton1Click:Connect(function() toggleFlingArkineku(flingB) end)
+   
+    -- Botón FLING color beige oscuro (2px más largo)
+local flingB = createBtn(flingSec, {0.6,0,0,27}, {0.2,0,0,28}, "⚡ FLING: OFF", Color3.fromRGB(200, 160, 120))
+flingB.MouseButton1Click:Connect(function() toggleFlingArkineku(flingB) end)
     
     y=y+90
     local tpB=createBtn(main,{0.6,0,0,32},{0.2,0,0,y},"🚀 TELEPORT",Color3.fromRGB(150,170,200))
@@ -914,57 +991,20 @@ local function CreateHub()
     godBtn.MouseButton1Click:Connect(function()toggleGodMode(godBtn)end)
     
     y=y+42
-    local fcSec=createFrame(main,{0.9,0,0,95},{0.05,0,0,y},Color3.fromRGB(220,190,150))
+    local fcSec=createFrame(main,{0.9,0,0,70},{0.05,0,0,y},Color3.fromRGB(220,190,150))
     createLbl(fcSec,{1,0,0,22},{0,0,0,3},"🚗 FLY CAR",Color3.fromRGB(200,120,80),true)
     local fcB=createBtn(fcSec,{0.3,0,0,28},{0.1,0,0,28},"OFF",Color3.fromRGB(200,150,120))
     local fcSpd=createLbl(fcSec,{0.15,0,0,28},{0.45,0,0,28},tostring(_G.flyCarSpeed),Color3.fromRGB(200,120,80))
     local fcM=createBtn(fcSec,{0,24,0,24},{0.6,0,0,30},"-",Color3.fromRGB(200,130,110))
     local fcP=createBtn(fcSec,{0,24,0,24},{0.7,0,0,30},"+",Color3.fromRGB(150,180,150))
-    -- Botones de FLY CAR (▲ y ▼)
-local fcFwd = createBtn(fcSec,{0.35,0,0,28},{0.1,0,0,60},"▲",Color3.fromRGB(150,170,200))
-local fcBack = createBtn(fcSec,{0.35,0,0,28},{0.55,0,0,60},"▼",Color3.fromRGB(150,170,200))
-
-_G.flyCarFwdBtn = fcFwd
-_G.flyCarBackBtn = fcBack
-
--- Variables de dirección
-_G.flyCarDirection = Vector3.new(0,0,0)
-_G.flyCarActiveButton = nil
-
--- Función para manejar clic
-local function setFlyCarDirection(btn, direction)
-    if not _G.flyCarActive then return end
-    
-    if _G.flyCarActiveButton == btn then
-        _G.flyCarDirection = Vector3.new(0,0,0)
-        btn.BackgroundColor3 = Color3.fromRGB(150,170,200)
-        _G.flyCarActiveButton = nil
-    else
-        if _G.flyCarActiveButton then
-            _G.flyCarActiveButton.BackgroundColor3 = Color3.fromRGB(150,170,200)
-        end
-        _G.flyCarDirection = direction
-        btn.BackgroundColor3 = Color3.fromRGB(100,200,100)
-        _G.flyCarActiveButton = btn
-    end
-end
-
--- Conexiones
-fcFwd.MouseButton1Click:Connect(function() 
-    setFlyCarDirection(fcFwd, Camera.CFrame.LookVector) 
-end)
-
-fcBack.MouseButton1Click:Connect(function() 
-    setFlyCarDirection(fcBack, -Camera.CFrame.LookVector) 
-end)
 
     fcB.MouseButton1Click:Connect(function()toggleFlyCar(fcB)end)
     fcM.MouseButton1Click:Connect(function()_G.flyCarSpeed=math.max(10,_G.flyCarSpeed-5);fcSpd.Text=tostring(_G.flyCarSpeed)end)
     fcP.MouseButton1Click:Connect(function()_G.flyCarSpeed=math.min(200,_G.flyCarSpeed+5);fcSpd.Text=tostring(_G.flyCarSpeed)end)
-    
-    y=y+100
-    local trollBtn=createBtn(main,{0.9,0,0,35},{0.05,0,0,y},"👹 TROLL ▼",Color3.fromRGB(200,130,110))
-    local troll=Instance.new("Frame",main);troll.Size=UDim2.new(0.9,0,0,0);troll.Position=UDim2.new(0.05,0,0,y+40);troll.BackgroundColor3=Color3.fromRGB(220,190,150);troll.BorderSizePixel=0;troll.Visible=false;troll.ClipsDescendants=true;Instance.new("UICorner",troll).CornerRadius=UDim.new(0,8)
+
+    y=y+75
+    local trollBtn=createBtn(main,{0.9,0,0,30},{0.05,0,0,y},"👹 TROLL ▼",Color3.fromRGB(200,130,110))
+    local troll=Instance.new("Frame",main);troll.Size=UDim2.new(0.9,0,0,0);troll.Position=UDim2.new(0.05,0,0,y+45);troll.BackgroundColor3=Color3.fromRGB(220,190,150);troll.BorderSizePixel=0;troll.Visible=false;troll.ClipsDescendants=true;Instance.new("UICorner",troll).CornerRadius=UDim.new(0,8)
     
     local ty2=5
     local bang=createBtn(troll,{0.45,0,0,28},{0.05,0,0,ty2},"💥 BANG",Color3.fromRGB(200,130,110))
@@ -1048,6 +1088,10 @@ end)
     local leftBtn=createBtn(main,{0,35,0,35},{0,-10,0.5,-17.5},"▶",Color3.fromRGB(180,130,90));leftBtn.TextSize=22;leftBtn.ZIndex=10
     local left=Instance.new("Frame",main);left.Size=UDim2.new(0,0,0,440);left.Position=UDim2.new(0,-255,0,90);left.BackgroundColor3=Color3.fromRGB(220,190,150);left.BorderSizePixel=0;left.Visible=false;left.ClipsDescendants=true;Instance.new("UICorner",left).CornerRadius=UDim.new(0,10)
     createLbl(left,{1,0,0,35},{0,0,0,0},"ANIMACIONES",Color3.fromRGB(200,120,80))
+
+local leftStroke = Instance.new("UIStroke", left)
+leftStroke.Thickness = 2
+leftStroke.Color = Color3.fromRGB(210, 160, 130)
     
     local scroll=Instance.new("ScrollingFrame",left);scroll.Size=UDim2.new(0.9,0,0.85,0);scroll.Position=UDim2.new(0.05,0,0.1,0);scroll.BackgroundColor3=Color3.fromRGB(240,215,190);scroll.BorderSizePixel=0;scroll.ScrollBarThickness=6
     local ay=5
@@ -1072,6 +1116,10 @@ end)
     local rightBtn=createBtn(main,{0,35,0,35},{1,-20,0.5,-17.5},"◀",Color3.fromRGB(180,130,90));rightBtn.TextSize=22;rightBtn.ZIndex=10
     local right=Instance.new("Frame",main);right.Size=UDim2.new(0,0,0,520);right.Position=UDim2.new(1,5,0,90);right.BackgroundColor3=Color3.fromRGB(220,190,150);right.BorderSizePixel=0;right.Visible=false;right.ClipsDescendants=true;Instance.new("UICorner",right).CornerRadius=UDim.new(0,10)
     createLbl(right,{1,0,0,35},{0,0,0,0},"MOVE PARTS",Color3.fromRGB(200,120,80))
+
+local rightStroke = Instance.new("UIStroke", right)
+rightStroke.Thickness = 2
+rightStroke.Color = Color3.fromRGB(210, 160, 130)
     
     local ay2,bs=40,42
     local up=createBtn(right,{0,bs,0,bs},{0.5,-bs/2,0,ay2},"▲",Color3.fromRGB(210,160,130))
@@ -1156,6 +1204,10 @@ end)
             troll.Visible = false
         end
     end)
+
+local trollStroke = Instance.new("UIStroke", troll)
+trollStroke.Thickness = 2
+trollStroke.Color = Color3.fromRGB(210, 160, 130)
     
     -- Conexiones de los botones de escala y cierre
     sd.MouseButton1Click:Connect(function()
