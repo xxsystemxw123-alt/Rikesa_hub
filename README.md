@@ -5,6 +5,9 @@ SGui:SetCore("SendNotification",{Title="RIKESA HUB",Text="[ RIKESA HUB ] Loaded!
 _G.selectedPart=nil;_G.selectedHighlight=nil;_G.floatSpeed=10;_G.flySpeed=1.5;_G.isFlying=false;_G.hiddenfling=false;_G.antiFling=false;_G.followCamera=false;_G.followDistance=15;_G.moveDirection=Vector3.new(0,0,0);_G.initialRotation=CFrame.new();_G.flingSpeed=10000;_G.multiSelect={};_G.selectRadius=50;_G.selectCircle=nil;_G.ringPartsEnabled=false;_G.tornadoConfig={radius=50,height=100,rotationSpeed=7,attractionStrength=1000,};_G.tornadoParts={};_G.godModeActive=false;_G.godModeConnection=nil;_G.fallDamageConnection=nil;_G.fallVelocityConnection=nil;_G.godModeTimer=nil;_G.originalWalkSpeed=16;_G.originalJumpPower=50;_G.flyBG=nil;_G.flyBV=nil;_G.flyConnection=nil;_G.autoAnimActive=false;_G.autoAnimTrack=nil;_G.antiFlingConnection=nil;_G.flingUI=nil;_G.flingActive=false;_G.flingConnection=nil;_G.flingNoclipConnection=nil;_G.flingPlayerNoclipParts={};_G.flingOtherNoclipParts={};_G.flingMasslessParts={};_G.collisionProtection=nil;_G.velocityMonitor=nil;_G.healthForceTimer=nil;_G.velocityProtection = nil;_G.customGravity = workspace.Gravity;_G.gravityInputActive = false
 _G.customGravity = workspace.Gravity
 _G.gravityInputActive = false
+_G.antiFlingActive = false
+_G.antiFlingConnections = {}
+_G.antiFlingOriginalCanCollide = {}
 -- [2] TROLL VARS
 _G.bangActive=false;_G.faceBangActive=false;_G.sitActive=false;_G.suckActive=false;_G.ragdollActive=false;_G.infiniteJumpActive=false;_G.noclipActive=false;_G.espEnabled=false;_G.jerkActive=false;_G.zeroGActive=false;_G.zeroGConnection=nil
 -- [3] CONNECTIONS
@@ -591,7 +594,116 @@ LP.CharacterAdded:Connect(function(newChar)
     end
 end)
 
--- [25] TOGGLE 
+-- [25] TOGGLE AntiFling
+function toggleAntiFling(b)
+    _G.antiFlingActive = not _G.antiFlingActive
+    
+    local Players = game:GetService("Players")
+    local localPlayer = Players.LocalPlayer
+    
+    -- Función para deshabilitar colisiones
+    local function disableCollisions(character)
+        if not character then return end
+        
+        -- Guardar estado original y deshabilitar
+        for _, part in ipairs(character:GetDescendants()) do
+            if part:IsA("BasePart") then
+                if not _G.antiFlingOriginalCanCollide[part] then
+                    _G.antiFlingOriginalCanCollide[part] = part.CanCollide
+                end
+                part.CanCollide = false
+            end
+        end
+        
+        -- Conectar para futuras partes
+        local conn = character.DescendantAdded:Connect(function(part)
+            if part:IsA("BasePart") then
+                if not _G.antiFlingOriginalCanCollide[part] then
+                    _G.antiFlingOriginalCanCollide[part] = part.CanCollide
+                end
+                part.CanCollide = false
+            end
+        end)
+        table.insert(_G.antiFlingConnections, conn)
+    end
+    
+    -- Función para restaurar colisiones
+    local function restoreCollisions(character)
+        if not character then return end
+        
+        for _, part in ipairs(character:GetDescendants()) do
+            if part:IsA("BasePart") then
+                if _G.antiFlingOriginalCanCollide[part] ~= nil then
+                    part.CanCollide = _G.antiFlingOriginalCanCollide[part]
+                end
+            end
+        end
+    end
+    
+    -- Función para manejar jugadores
+    local function onPlayerAdded(player)
+        if player == localPlayer then return end
+        
+        if player.Character then
+            if _G.antiFlingActive then
+                disableCollisions(player.Character)
+            end
+        end
+        
+        local conn = player.CharacterAdded:Connect(function(character)
+            if _G.antiFlingActive then
+                disableCollisions(character)
+            end
+        end)
+        table.insert(_G.antiFlingConnections, conn)
+    end
+    
+    if _G.antiFlingActive then
+        -- ACTIVAR ANTI FLING
+        -- Desconectar conexiones anteriores si existen
+        for _, conn in ipairs(_G.antiFlingConnections) do
+            conn:Disconnect()
+        end
+        _G.antiFlingConnections = {}
+        
+        -- Aplicar a todos los jugadores actuales
+        for _, player in ipairs(Players:GetPlayers()) do
+            onPlayerAdded(player)
+        end
+        
+        -- Conectar para jugadores nuevos
+        local conn = Players.PlayerAdded:Connect(onPlayerAdded)
+        table.insert(_G.antiFlingConnections, conn)
+        
+        if b then
+            b.Text = "AntiFling: ON"
+            b.BackgroundColor3 = Color3.fromRGB(200, 160, 120)  -- Beige oscuro (mismo que FLING)
+        end
+        
+    else
+        -- DESACTIVAR ANTI FLING
+        -- Restaurar colisiones de todos los jugadores
+        for _, player in ipairs(Players:GetPlayers()) do
+            if player.Character then
+                restoreCollisions(player.Character)
+            end
+        end
+        
+        -- Desconectar todas las conexiones
+        for _, conn in ipairs(_G.antiFlingConnections) do
+            conn:Disconnect()
+        end
+        _G.antiFlingConnections = {}
+        
+        -- Limpiar datos guardados
+        _G.antiFlingOriginalCanCollide = {}
+        
+        if b then
+            b.Text = "AntiFling: OFF"
+            b.BackgroundColor3 = Color3.fromRGB(200, 160, 120)  -- MISMO beige oscuro
+        end
+    end
+end
 
 -- [26] TOGGLE JERK (CARGAR SCRIPT EXTERNO)
 function toggleJerk(b)
@@ -886,7 +998,7 @@ local main=Instance.new("Frame",sg);main.Size=UDim2.new(0,300,0,540);main.Positi
 
 -- BORDE GRUESO ALREDEDOR DEL MENÚ (CORREGIDO)
 local borde = Instance.new("UIStroke", main)
-borde.Thickness = 4  -- Aumenté el grosor para que se note más
+borde.Thickness = 2  -- Aumenté el grosor para que se note más
 borde.Color = Color3.fromRGB(170, 130, 90)
 borde.Transparency = 0
 borde.ApplyStrokeMode = Enum.ApplyStrokeMode.Border  -- Forzar que se aplique como borde
@@ -958,7 +1070,7 @@ titleBorder.Transparency = 0
     createLbl(flingSec,{1,0,0,20},{0,0,0,3},"🌀 FLING",Color3.fromRGB(200,120,80),true)
    
     -- Botón FLING color beige oscuro (2px más largo)
-local flingB = createBtn(flingSec, {0.6,0,0,27}, {0.2,0,0,28}, "⚡ FLING: OFF", Color3.fromRGB(200, 160, 120))
+local flingB = createBtn(flingSec, {0.6,0,0,27}, {0.2,0,0,26}, "⚡ FLING: OFF", Color3.fromRGB(200, 160, 120))
 flingB.MouseButton1Click:Connect(function() toggleFlingArkineku(flingB) end)
     
     y=y+90
@@ -985,6 +1097,26 @@ flingB.MouseButton1Click:Connect(function() toggleFlingArkineku(flingB) end)
             end
         end
     end)
+
+-- Botón AntiFling (más bajo, 1px más abajo, mismo color que FLING)
+local antiFlingBtn = Instance.new("TextButton")
+antiFlingBtn.Size = UDim2.new(0.5, 0, 0, 20)  -- Más bajo (de 22 a 20)
+antiFlingBtn.Position = UDim2.new(0.25, 0, 1, -25)  -- 1px más abajo (de -28 a -25)
+antiFlingBtn.Text = "AntiFling: OFF"
+antiFlingBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+antiFlingBtn.BackgroundColor3 = Color3.fromRGB(200, 160, 120)  -- MISMO COLOR QUE FLING
+antiFlingBtn.BackgroundTransparency = 0
+antiFlingBtn.Font = Enum.Font.GothamBold
+antiFlingBtn.TextSize = 10
+antiFlingBtn.Parent = flingSec
+
+-- Borde redondeado
+local antiCorner = Instance.new("UICorner")
+antiCorner.CornerRadius = UDim.new(0, 6)
+antiCorner.Parent = antiFlingBtn
+
+-- Conectar funcionalidad
+antiFlingBtn.MouseButton1Click:Connect(function() toggleAntiFling(antiFlingBtn) end)
     
     y=y+37
     local godBtn=createBtn(main,{0.6,0,0,32},{0.2,0,0,y},"🛡️ GOD MODE: OFF",Color3.fromRGB(200,150,180))
