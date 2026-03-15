@@ -39,7 +39,45 @@ local function clearMultiForces()for _,p in pairs(_G.multiSelect)do if p and p.P
 local function RetainTornadoPart(p)if p:IsA("BasePart")and not p.Anchored and p:IsDescendantOf(workspace)then if p.Parent==LP.Character or p:IsDescendantOf(LP.Character)then return false end return true end return false end
 local function addTornadoPart(p)if RetainTornadoPart(p)then if p.Parent~=LP.Character and not p:IsDescendantOf(LP.Character)then if not table.find(_G.tornadoParts,p)then table.insert(_G.tornadoParts,p)end end end end
 local function removeTornadoPart(p)local i=table.find(_G.tornadoParts,p)if i then table.remove(_G.tornadoParts,i)end end
-local function restoreTornadoParts()for _,p in pairs(_G.tornadoParts)do if p and p.Parent then p.CanCollide=true;p.Velocity=Vector3.new(0,0,0);p.RotVelocity=Vector3.new(0,0,0)end end end
+local function restoreTornadoParts()
+    for _, part in pairs(_G.tornadoParts) do
+        if part and part.Parent then
+            -- Restaurar CanCollide
+            part.CanCollide = true
+            -- DETENER COMPLETAMENTE EL MOVIMIENTO
+            part.Velocity = Vector3.new(0,0,0)
+            part.RotVelocity = Vector3.new(0,0,0)
+            -- También detener cualquier BodyMotion que haya quedado
+            for _, child in pairs(part:GetChildren()) do
+                if child:IsA("BodyVelocity") or child:IsA("BodyPosition") or child:IsA("BodyGyro") or child:IsA("BodyForce") then
+                    child:Destroy()
+                end
+            end
+        end
+    end
+end
+
+-- Función para detener completamente todas las partes del tornado
+local function stopAllTornadoForces()
+    for _, part in pairs(_G.tornadoParts) do
+        if part and part.Parent then
+            -- Forzar velocidad cero
+            part.Velocity = Vector3.new(0,0,0)
+            part.RotVelocity = Vector3.new(0,0,0)
+            -- Eliminar cualquier fuerza aplicada
+            part.AssemblyLinearVelocity = Vector3.new(0,0,0)
+            part.AssemblyAngularVelocity = Vector3.new(0,0,0)
+            -- Eliminar BodyMovers
+            for _, child in pairs(part:GetChildren()) do
+                if child:IsA("BodyVelocity") or child:IsA("BodyPosition") or 
+                   child:IsA("BodyGyro") or child:IsA("BodyForce") or 
+                   child:IsA("BodyAngularVelocity") then
+                    child:Destroy()
+                end
+            end
+        end
+    end
+end
 for _,p in pairs(workspace:GetDescendants())do addTornadoPart(p)end
 workspace.DescendantAdded:Connect(addTornadoPart)workspace.DescendantRemoving:Connect(removeTornadoPart)
 if LP.Character then local r={}for i,p in ipairs(_G.tornadoParts)do if p.Parent==LP.Character or p:IsDescendantOf(LP.Character)then table.insert(r,i)end end for i=#r,1,-1 do table.remove(_G.tornadoParts,r[i])end end
@@ -61,7 +99,12 @@ function toggleTornado(b)
         if _G.noclipActive then
             toggleNoclip()
         end
-        restoreTornadoParts()
+        -- DETENER COMPLETAMENTE EL TORNADO
+        stopAllTornadoForces()  -- Primera pasada agresiva
+        restoreTornadoParts()    -- Restaurar CanCollide
+        task.wait(0.1)
+        stopAllTornadoForces()  -- Segunda pasada por si acaso
+        restoreTornadoParts()    -- Asegurar CanCollide
     end
 end
 -- [14] TOGGLE BANG (CORREGIDO - SIEMPRE DETRÁS)
@@ -293,13 +336,14 @@ end
 function toggleESP(b)_G.espEnabled=not _G.espEnabled if _G.espEnabled then for _,p in Players:GetPlayers()do if p~=LP and p.Character then local h=Instance.new("Highlight",p.Character);h.Adornee=p.Character;h.FillColor=Color3.fromRGB(255,255,0);h.FillTransparency=0.5 end end if b then b.BackgroundColor3=Color3.fromRGB(100,200,100)end else for _,p in Players:GetPlayers()do if p.Character then local o=p.Character:FindFirstChildOfClass("Highlight")if o then o:Destroy()end end end if b then b.BackgroundColor3=Color3.fromRGB(150,170,200)end end end
 -- [22] RESET STATS
 function resetStats(b)if _G.bangActive then toggleBang()end if _G.faceBangActive then toggleFaceBang()end if _G.sitActive then toggleSit()end if _G.suckActive then toggleSuck()end if _G.ragdollActive then toggleRagdoll()end if _G.infiniteJumpActive then toggleInfiniteJump()end if _G.noclipActive then toggleNoclip()end if _G.espEnabled then toggleESP()end if _G.jerkActive then toggleJerk()end if _G.hiddenfling then _G.hiddenfling=false if _G.flingConnection then _G.flingConnection:Disconnect()_G.flingConnection=nil end end if b then b.BackgroundColor3=Color3.fromRGB(180,140,100)end end
--- [23] TOGGLE GOD MODE (CONGELA LA SALUD - NUNCA BAJA)
+-- [23] TOGGLE GOD MODE (VERSIÓN MEJORADA - PROTECCIÓN TOTAL)
 function toggleGodMode(b)
     _G.godModeActive = not _G.godModeActive
     
     -- Desconectar conexiones anteriores
     if _G.godModeConnection then _G.godModeConnection:Disconnect() _G.godModeConnection = nil end
-    if _G.healthFreeze then _G.healthFreeze:Disconnect() _G.healthFreeze = nil end
+    if _G.healthPulse then _G.healthPulse:Disconnect() _G.healthPulse = nil end
+    if _G.impactProtection then _G.impactProtection:Disconnect() _G.impactProtection = nil end
     
     local character = LP.Character
     if not character then
@@ -314,22 +358,42 @@ function toggleGodMode(b)
     if not humanoid then return end
     
     if _G.godModeActive then
-        -- Guardar la salud actual como referencia
+        -- Guardar la salud actual
         local frozenHealth = humanoid.Health
         
-        -- CONGELAR LA SALUD (nunca baja, nunca sube)
-        _G.healthFreeze = RS.RenderStepped:Connect(function()
+        -- PULSO DE SALUD MUY FRECUENTE (cada frame)
+        _G.healthPulse = RS.RenderStepped:Connect(function()
             if _G.godModeActive and humanoid and humanoid.Parent then
-                -- Forzar la salud al valor congelado
+                -- Forzar la salud al valor congelado SIEMPRE
                 if humanoid.Health ~= frozenHealth then
                     humanoid.Health = frozenHealth
                 end
             end
         end)
         
-        -- También detectar cambios por si acaso
+        -- DETECTOR DE CAMBIOS EN SALUD (INMEDIATO)
         _G.godModeConnection = humanoid:GetPropertyChangedSignal("Health"):Connect(function()
             if _G.godModeActive and humanoid.Health ~= frozenHealth then
+                humanoid.Health = frozenHealth
+            end
+        end)
+        
+        -- PROTECCIÓN CONTRA IMPACTOS POR VELOCIDAD
+        _G.impactProtection = RS.Heartbeat:Connect(function()
+            if not _G.godModeActive then return end
+            
+            local root = character:FindFirstChild("HumanoidRootPart")
+            if not root then return end
+            
+            -- Si la salud baja de repente por impacto, restaurar inmediatamente
+            if humanoid.Health ~= frozenHealth then
+                humanoid.Health = frozenHealth
+            end
+            
+            -- Si la velocidad es muy alta, preparar protección extra
+            local speed = root.Velocity.Magnitude
+            if speed > 100 then
+                -- Asegurar salud congelada
                 humanoid.Health = frozenHealth
             end
         end)
@@ -348,7 +412,7 @@ function toggleGodMode(b)
     end
 end
 
--- MANEJAR RESPAWN
+-- MANEJAR RESPAWN (MEJORADO)
 LP.CharacterAdded:Connect(function(newChar)
     task.wait(0.5)
     if _G.godModeActive then
@@ -357,10 +421,13 @@ LP.CharacterAdded:Connect(function(newChar)
             -- Al renacer, congelar la salud del nuevo personaje
             local frozenHealth = humanoid.Health
             
-            if _G.healthFreeze then _G.healthFreeze:Disconnect() end
+            -- Desconectar conexiones anteriores
+            if _G.healthPulse then _G.healthPulse:Disconnect() end
             if _G.godModeConnection then _G.godModeConnection:Disconnect() end
+            if _G.impactProtection then _G.impactProtection:Disconnect() end
             
-            _G.healthFreeze = RS.RenderStepped:Connect(function()
+            -- Reconectar con el nuevo personaje
+            _G.healthPulse = RS.RenderStepped:Connect(function()
                 if _G.godModeActive and humanoid and humanoid.Parent then
                     if humanoid.Health ~= frozenHealth then
                         humanoid.Health = frozenHealth
@@ -370,6 +437,13 @@ LP.CharacterAdded:Connect(function(newChar)
             
             _G.godModeConnection = humanoid:GetPropertyChangedSignal("Health"):Connect(function()
                 if _G.godModeActive and humanoid.Health ~= frozenHealth then
+                    humanoid.Health = frozenHealth
+                end
+            end)
+            
+            _G.impactProtection = RS.Heartbeat:Connect(function()
+                if not _G.godModeActive then return end
+                if humanoid.Health ~= frozenHealth then
                     humanoid.Health = frozenHealth
                 end
             end)
@@ -1056,7 +1130,7 @@ titleBorder.Transparency = 0
     
     y=y+38
     local flySec=createFrame(main,{0.9,0,0,90},{0.05,0,0,y},Color3.fromRGB(220,190,150))
-    createLbl(flySec,{1,0,0,22},{0,0,0,3},"✈️ VUELO",Color3.fromRGB(200,120,80),true)
+    createLbl(flySec,{1,0,0,22},{0,0,0,3},"✈️ FLY",Color3.fromRGB(200,120,80),true)
     local flyB=createBtn(flySec,{0.3,0,0,32},{0.1,0,0,28},"FLY",Color3.fromRGB(210,160,130))
     local flySpd=createLbl(flySec,{0.15,0,0,32},{0.45,0,0,28},string.format("%.1f",_G.flySpeed),Color3.fromRGB(200,120,80))
     local flyM=createBtn(flySec,{0,24,0,24},{0.6,0,0,32},"-",Color3.fromRGB(200,130,110))
@@ -1268,7 +1342,75 @@ rightStroke.Color = Color3.fromRGB(210, 160, 130)
     local stop=createBtn(right,{0.4,0,0,32},{0.55,0,0,300},"DETENER",Color3.fromRGB(200,130,110))
     local follow=createBtn(right,{0.6,0,0,32},{0.2,0,0,340},"◯ SEGUIR: OFF",Color3.fromRGB(210,160,130))
     
-    local tornadoBtn=createBtn(right,{0.6,0,0,32},{0.2,0,0,420},"🌪️ RingParts: OFF",Color3.fromRGB(210,160,130))
+    -- Botón Tornado (ya existente)
+local tornadoBtn=createBtn(right,{0.6,0,0,32},{0.2,0,0,420},"🌪️ RingParts: OFF",Color3.fromRGB(210,160,130))
+
+-- Botón X rojo para limpiar fuerzas (misma altura, ancho automático)
+local cleanTornadoBtn = Instance.new("TextButton")
+cleanTornadoBtn.Size = UDim2.new(0, 32, 0, 32)  -- Misma altura que tornadoBtn (32)
+cleanTornadoBtn.Position = UDim2.new(0.85, 0, 0, 420)  -- A la derecha con 1px de separación
+cleanTornadoBtn.Text = "X"
+cleanTornadoBtn.TextColor3 = Color3.fromRGB(255, 255, 255)  -- X blanca
+cleanTornadoBtn.BackgroundColor3 = Color3.fromRGB(200, 0, 0)  -- Rojo
+cleanTornadoBtn.BackgroundTransparency = 0
+cleanTornadoBtn.Font = Enum.Font.GothamBold
+cleanTornadoBtn.TextSize = 20
+cleanTornadoBtn.TextScaled = true
+cleanTornadoBtn.Parent = right
+
+-- Borde rojo oscuro
+local cleanBorder = Instance.new("UIStroke", cleanTornadoBtn)
+cleanBorder.Thickness = 2
+cleanBorder.Color = Color3.fromRGB(150, 0, 0)  -- Rojo oscuro
+cleanBorder.Transparency = 0
+
+-- Borde redondeado
+local cleanCorner = Instance.new("UICorner")
+cleanCorner.CornerRadius = UDim.new(0, 6)
+cleanCorner.Parent = cleanTornadoBtn
+
+-- Función para limpiar fuerzas del tornado
+local function cleanTornadoForces()
+    -- Detener TODAS las fuerzas del tornado
+    for _, part in pairs(_G.tornadoParts) do
+        if part and part.Parent then
+            -- Detener movimiento
+            part.Velocity = Vector3.new(0,0,0)
+            part.RotVelocity = Vector3.new(0,0,0)
+            part.AssemblyLinearVelocity = Vector3.new(0,0,0)
+            part.AssemblyAngularVelocity = Vector3.new(0,0,0)
+            -- Eliminar BodyMovers
+            for _, child in pairs(part:GetChildren()) do
+                if child:IsA("BodyVelocity") or child:IsA("BodyPosition") or 
+                   child:IsA("BodyGyro") or child:IsA("BodyForce") or 
+                   child:IsA("BodyAngularVelocity") then
+                    child:Destroy()
+                end
+            end
+            -- Restaurar CanCollide
+            part.CanCollide = true
+        end
+    end
+    
+    -- Si el tornado está activado, desactivarlo
+    if _G.ringPartsEnabled then
+        _G.ringPartsEnabled = false
+        if tornadoBtn then
+            tornadoBtn.Text = "🌪️ RingParts: OFF"
+            tornadoBtn.BackgroundColor3 = Color3.fromRGB(210,160,130)
+        end
+    end
+    
+    -- Si el tornado ya estaba desactivado, solo limpia fuerzas (ya lo hizo arriba)
+    
+    -- Feedback visual
+    cleanTornadoBtn.BackgroundColor3 = Color3.fromRGB(255, 100, 100)  -- Rojo más claro al presionar
+    task.wait(0.1)
+    cleanTornadoBtn.BackgroundColor3 = Color3.fromRGB(200, 0, 0)  -- Volver al rojo original
+end
+
+-- Conectar el botón
+cleanTornadoBtn.MouseButton1Click:Connect(cleanTornadoForces)
     local tornadoRadiusLabel=createLbl(right,{1,0,0,22},{0,0,0,450},"⚡ RADIUS: ".._G.tornadoConfig.radius,Color3.fromRGB(200,120,80),true)
     local tornadoRadiusSlider=Instance.new("Frame",right);tornadoRadiusSlider.Size=UDim2.new(0.8,0,0,12);tornadoRadiusSlider.Position=UDim2.new(0.1,0,0,470);tornadoRadiusSlider.BackgroundColor3=Color3.fromRGB(200,150,120);tornadoRadiusSlider.BorderSizePixel=0;Instance.new("UICorner",tornadoRadiusSlider).CornerRadius=UDim.new(0,6)
     local tornadoRadiusCircle=Instance.new("TextButton",tornadoRadiusSlider);tornadoRadiusCircle.Size=UDim2.new(0,16,0,16);tornadoRadiusCircle.Position=UDim2.new((_G.tornadoConfig.radius-10)/990,-8,0.5,-8);tornadoRadiusCircle.Text="";tornadoRadiusCircle.BackgroundColor3=Color3.fromRGB(255,215,190);tornadoRadiusCircle.BorderSizePixel=0;Instance.new("UICorner",tornadoRadiusCircle).CornerRadius=UDim.new(0,8)
